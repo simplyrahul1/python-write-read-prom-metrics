@@ -1,14 +1,16 @@
 import os
 import time
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from prometheus_client import start_http_server, CollectorRegistry, Gauge
 
-# Set the Prometheus gateway address and job name
-PROMETHEUS_GATEWAY = 'http://localhost:9091'
-JOB_NAME = 'file_read_metrics'
+# Set the port to expose Prometheus metrics on
+PROMETHEUS_PORT = 29090
 
 # Create the Prometheus metric to track file read time
 registry = CollectorRegistry()
 file_read_time = Gauge('file_read_time', 'Time taken to read the file', registry=registry)
+
+# Start the HTTP server to expose Prometheus metrics on the specified port
+start_http_server(PROMETHEUS_PORT)
 
 # Set the directory to read files from
 DIRECTORY_TO_READ_FROM = 'path/to/directory'
@@ -28,9 +30,6 @@ while True:
 
             # Calculate the time taken to read the file and update the Prometheus metric
             file_read_time.set(end_time - start_time)
-
-            # Push the Prometheus metric to the gateway
-            push_to_gateway(PROMETHEUS_GATEWAY, job=JOB_NAME, registry=registry)
 
             # Remove the file once it's been read
             os.remove(file_path)
