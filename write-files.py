@@ -1,45 +1,48 @@
 import os
-import shutil
 import random
 import time
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from datetime import datetime
+from prometheus_client import start_http_server, CollectorRegistry, Gauge
 
-# Set the Prometheus gateway address and job name
-PROMETHEUS_GATEWAY = 'http://localhost:9091'
-JOB_NAME = 'file_copy_metrics'
+# Set the port to expose Prometheus metrics on
+PROMETHEUS_PORT = 19090
 
-# Create the Prometheus metric to track file copy time
+# Create the Prometheus metric to track file write time
 registry = CollectorRegistry()
-file_copy_time = Gauge('file_copy_time', 'Time taken to copy the file', registry=registry)
+file_write_time = Gauge('file_write_time', 'Time taken to write the file', registry=registry)
 
-# Set the directory to create files in
-DIRECTORY_TO_CREATE_IN = 'path/to/directory'
+# Create the directory structure to write files to
+DIRECTORY_TO_WRITE_TO = 'path/to/directory'
 
-# Generate a random 1.4 MB file to copy every minute for 30 minutes
-for i in range(30):
-    # Create the directory and subdirectories in yyyy/mm/dd/hh/mm format
-    now = time.localtime()
-    dir_name = f'{now.tm_year}/{now.tm_mon:02d}/{now.tm_mday:02d}/{now.tm_hour:02d}/{now.tm_min:02d}'
-    os.makedirs(os.path.join(DIRECTORY_TO_CREATE_IN, dir_name), exist_ok=True)
-    
-    # Generate a random 1.4 MB file to copy
-    filename = 'random_file.bin'
-    with open(filename, 'wb') as f:
-        f.write(os.urandom(1400000))
-        
-    # Copy the file to the directory and measure the time it takes
+# Create a random file of size 1.4 MB
+FILE_SIZE = 1400000
+random_data = os.urandom(FILE_SIZE)
+
+# Create a function to write the file and measure the time it takes
+def write_file():
+    # Create the directory structure based on the current time
+    now = datetime.now()
+    directory_path = os.path.join(DIRECTORY_TO_WRITE_TO, now.strftime('%Y'), now.strftime('%m'),
+                                  now.strftime('%d'), now.strftime('%H'), now.strftime('%M'))
+    os.makedirs(directory_path, exist_ok=True)
+
+    # Write the file and measure the time it takes
     start_time = time.monotonic()
-    shutil.copy(filename, os.path.join(DIRECTORY_TO_CREATE_IN, dir_name))
+    file_path = os.path.join(directory_path, f'{now.strftime("%S")}.dat')
+    with open(file_path, 'wb') as f:
+        f.write(random_data)
     end_time = time.monotonic()
 
-    # Calculate the time taken to copy the file and update the Prometheus metric
-    file_copy_time.set(end_time - start_time)
+    # Calculate the time taken to write the file and update the Prometheus metric
+    file_write_time.set(end_time - start_time)
 
-    # Push the Prometheus metric to the gateway
-    push_to_gateway(PROMETHEUS_GATEWAY, job=JOB_NAME, registry=registry)
+# Start the HTTP server to expose Prometheus metrics on the specified port
+start_http_server(PROMETHEUS_PORT)
 
-    # Clean up the random file
-    os.remove(filename)
-    
-    # Wait for 1 minute before generating the next file
+# Write files every minute for 30 minutes
+for i in range(30):
+    write_file()
     time.sleep(60)
+
+# Sleep for 5 seconds to give the last file a chance to be read
+time.sleep(5)
